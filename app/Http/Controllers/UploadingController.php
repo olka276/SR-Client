@@ -5,6 +5,7 @@ namespace App\Http\Controllers;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Validator;
+use Symfony\Component\HttpFoundation\BinaryFileResponse;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
@@ -36,6 +37,7 @@ class UploadingController extends Controller
 
     /**
      * @param Request $request
+     * @return \Illuminate\Contracts\Foundation\Application|\Illuminate\Contracts\View\Factory|\Illuminate\Contracts\View\View
      */
     public function prepare(Request $request)
     {
@@ -47,6 +49,8 @@ class UploadingController extends Controller
             'name.required' => 'Proszę podać nazwę pliku bez rozszerzenia.',
         ]);
 
+        $files = $this->getFiles();
+
         if($validator->fails()) {
             $arr = json_decode($validator->getMessageBag());
             foreach($arr as $prop) {
@@ -54,19 +58,17 @@ class UploadingController extends Controller
                 break; // exits the foreach loop
             }
             return view('upload')->with([
-                'error' => $firstProp[0]
+                'error' => $firstProp[0],
+                'data' => $files
             ]);
         }
 
-        $files = $request->file;
+        $uploaded = $request->file;
 
-        foreach ($files as $file) {
+        foreach ($uploaded as $file) {
             $fileData = explode('.', $file->getClientOriginalName());
             $filename = $request->name;
             $extension = $fileData[count($fileData) - 1];
-
-            $files = $this->getFiles();
-
             $base = base64_encode($file->get());
 
             $response = Http::post('http://localhost:8000/api/upload', [
@@ -82,10 +84,27 @@ class UploadingController extends Controller
                 ]);
             }
 
-            return back()->with([
+            return redirect('/uploading')->with([
                 'message' => 'Plik został dodany',
                 'data' => $files
             ]);
         }
+    }
+
+    public function download(Request $request): BinaryFileResponse
+    {
+        $name = $request->name;
+        $extension = $request->ext;
+
+        $response = Http::post('http://localhost:8000/api/download', [
+            'name' => $name,
+            'extension' => $extension
+        ]);
+
+        $content = json_decode($response->body())->file;
+        $content = base64_decode($content);
+        $path    = public_path($name.".".$extension);
+        file_put_contents($path, $content);
+        return response()->download($path)->deleteFileAfterSend(true);
     }
 }

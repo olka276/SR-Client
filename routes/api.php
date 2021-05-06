@@ -19,3 +19,4 @@ Route::middleware('auth:api')->get('/user', function (Request $request) {
 });
 
 Route::post('/prepare', 'App\Http\Controllers\UploadingController@prepare');
+Route::get('/download', 'App\Http\Controllers\UploadingController@download');
